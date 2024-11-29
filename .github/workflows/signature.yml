@@ -1,0 +1,265 @@
+name: Signature
+
+on:
+    issues:
+        types:
+            - opened
+
+permissions:
+    contents: read
+    issues: write
+
+jobs:
+
+    process_signature:
+        name: process-signature
+        runs-on: ubuntu-latest
+        if: ${{ github.repository_owner == 'thousandbrainsproject' }}
+        steps:
+            - name: Verify tbp-bot credentials are set
+              id: verify-tbp-bot-credentials
+              uses: actions/github-script@v7
+              env:
+                TBP_BOT_TOKEN_SECRET: ${{ secrets.TBP_BOT_TOKEN_SECRET }}
+              with:
+                script: |
+                    const TBP_BOT_TOKEN_SECRET = process.env.TBP_BOT_TOKEN_SECRET;
+                    if (!TBP_BOT_TOKEN_SECRET)
+                    {
+                        core.setFailed("TBP_BOT_TOKEN_SECRET is not set");
+                        return;
+                    }
+            - name: Verify signature
+              id: verify-signature
+              uses: actions/github-script@v7
+              with:
+                script: |
+                    const expectedSignatureTitle = "Contributor License Agreement v1 Signature";
+                    const expectedSignatureBodyLine0 = "### CLA v1 Signature";
+                    const expectedSignatureBodyLine1 = "I have read the Contributor License Agreement v1 and I hereby sign the Contributor License Agreement v1.";
+                    const expectedLabel = "signature CLA v1";
+
+                    const body = context.payload.issue.body;
+                    const title = context.payload.issue.title;
+                    const labels = context.payload.issue.labels;
+
+                    if (title !== expectedSignatureTitle)
+                    {
+                        core.setFailed("Expected signature title not found in issue title");
+                        return;
+                    }
+
+                    const lines = body.split("\n").map(line => line.trim()).filter(line => line.length > 0);
+                    if (lines[0] !== expectedSignatureBodyLine0)
+                    {
+                        core.setFailed("Expected signature not found in issue body");
+                        return;
+                    }
+                    if (lines[1] !== expectedSignatureBodyLine1)
+                    {
+                        core.setFailed("Expected signature not found in issue body");
+                        return;
+                    }
+
+                    if (labels.length != 1)
+                    {
+                        core.setFailed("Expected exactly one label");
+                        return;
+                    }
+                    if (labels[0].name !== expectedLabel)
+                    {
+                        core.setFailed("Expected label not found");
+                        return;
+                    }
+            - name: Handle signature verification failure
+              uses: actions/github-script@v7
+              if: ${{ failure() && steps.verify-signature.outcome == 'failure' }}
+              with:
+                script: |
+                    const commentBody = "> [!WARNING]\n> Signature verification failed.\n\nPlease sign the CLA by [creating a new issue](https://github.com/thousandbrainsproject/cla/issues/new?template=01_sign_cla.yml&labels=signature+CLA+v1&title=Contributor+License+Agreement+v1+Signature) and only enter the required text into the issue body.";
+                    await github.rest.issues.createComment(
+                        {
+                            owner: context.repo.owner,
+                            repo: context.repo.repo,
+                            issue_number: context.payload.issue.number,
+                            body: commentBody
+                        }
+                    );
+                    await github.rest.issues.update(
+                        {
+                            owner: context.repo.owner,
+                            repo: context.repo.repo,
+                            issue_number: context.payload.issue.number,
+                            state: "closed"
+                        }
+                    );
+                    await github.rest.issues.lock(
+                        {
+                            owner: context.repo.owner,
+                            repo: context.repo.repo,
+                            issue_number: context.payload.issue.number,
+                            lock_reason: "resolved"
+                        }
+                    );
+            - name: Check if already a CLA signatory
+              id: check-if-already-a-cla-signatory
+              uses: actions/github-script@v7
+              with:
+                github-token: ${{ secrets.TBP_BOT_TOKEN_SECRET }}
+                result-encoding: string
+                script: |
+                    try
+                    {
+                        const membership = await github.rest.teams.getMembershipForUserInOrg(
+                                {
+                                org: "thousandbrainsproject",
+                                team_slug: "cla-signatories",
+                                username: context.payload.sender.login
+                            }
+                        );
+                        if (membership?.data?.state === "active")
+                        {
+                            return "already-a-signatory";
+                        }
+                    }
+                    catch (error)
+                    {
+                        if (error?.response?.status === 404)
+                        {
+                            return;
+                        }
+                        throw error;
+                    }
+            - name: Handle already a CLA signatory
+              id: handle-already-a-cla-signatory
+              uses: actions/github-script@v7
+              if: ${{ steps.check-if-already-a-cla-signatory.outputs.result == 'already-a-signatory' }}
+              with:
+                script: |
+                    const commentBody = "> [!WARNING]\n> You are already a CLA signatory.\n\nThank you for signing the CLA. You already signed previously.";
+                    await github.rest.issues.createComment(
+                        {
+                            owner: context.repo.owner,
+                            repo: context.repo.repo,
+                            issue_number: context.payload.issue.number,
+                            body: commentBody
+                        }
+                    );
+                    await github.rest.issues.update(
+                        {
+                            owner: context.repo.owner,
+                            repo: context.repo.repo,
+                            issue_number: context.payload.issue.number,
+                            state: "closed"
+                        }
+                    );
+                    await github.rest.issues.lock(
+                        {
+                            owner: context.repo.owner,
+                            repo: context.repo.repo,
+                            issue_number: context.payload.issue.number,
+                            lock_reason: "resolved"
+                        }
+                    );
+            - name: Invite to CLA signatories team
+              id: invite-to-cla-signatories-team
+              uses: actions/github-script@v7
+              if: ${{ steps.check-if-already-a-cla-signatory.outputs.result != 'already-a-signatory' }}
+              with:
+                github-token: ${{ secrets.TBP_BOT_TOKEN_SECRET }}
+                script: |
+                    await github.rest.teams.addOrUpdateMembershipForUserInOrg(
+                        {
+                            org: "thousandbrainsproject",
+                            team_slug: "cla-signatories",
+                            username: context.payload.sender.login,
+                            role: "member"
+                        }
+                    );
+            - name: Notify of team invitation
+              id: notify-of-team-invitation
+              uses: actions/github-script@v7
+              if: ${{ steps.invite-to-cla-signatories-team.outcome == 'success' }}
+              with:
+                script: |
+                    const commentBody = "Signature verified.\n\nThank you for signing the CLA.\n\nYou will be invited to the Thousand Brains Project `cla-signatories` team shortly. Please accept the invitation to complete the process.";
+                    await github.rest.issues.createComment(
+                        {
+                            owner: context.repo.owner,
+                            repo: context.repo.repo,
+                            issue_number: context.payload.issue.number,
+                            body: commentBody
+                        }
+                    );
+                    await github.rest.issues.update(
+                        {
+                            owner: context.repo.owner,
+                            repo: context.repo.repo,
+                            issue_number: context.payload.issue.number,
+                            state: "closed"
+                        }
+                    );
+                    await github.rest.issues.lock(
+                        {
+                            owner: context.repo.owner,
+                            repo: context.repo.repo,
+                            issue_number: context.payload.issue.number,
+                            lock_reason: "resolved"
+                        }
+                    );
+            - name: Generate backup artifact
+              id: generate-backup-artifact
+              uses: actions/github-script@v7
+              with:
+                result-encoding: string
+                script: |
+                    const fs = require("fs/promises");
+
+                    const issue = await github.rest.issues.get(
+                        {
+                            owner: context.repo.owner,
+                            repo: context.repo.repo,
+                            issue_number: context.payload.issue.number
+                        }
+                    );
+                    const artifactName = `${context.payload.sender.login}-signature-cla-v1-${context.payload.issue.number}`;
+                    const artifactPath = `${artifactName}.json`;
+                    const artifactContent = JSON.stringify(issue);
+                    await fs.writeFile(artifactPath, artifactContent);
+                    return artifactPath;
+            - name: Upload backup artifact
+              # TODO: Upload the artifact to S3 archive
+              uses: actions/upload-artifact@v4
+              with:
+                name: ${{ steps.generate-backup-artifact.outputs.result }}
+                path: ${{ steps.generate-backup-artifact.outputs.result }}
+            - name: Handle automation failure
+              uses: actions/github-script@v7
+              if: ${{ failure() && (steps.verify-tbp-bot-credentials.outcome == 'failure' || steps.handle-already-a-cla-signatory.outcome == 'failure' || steps.invite-to-cla-signatories-team.outcome == 'failure' || steps.notify-of-team-invitation.outcome == 'failure') }}
+              with:
+                script: |
+                    const commentBody = "> [!CAUTION]\n> Automation failed.\n\nPlease notify one of the [project maintainers](https://github.com/thousandbrainsproject/tbp.monty/blob/main/MAINTAINERS.md).";
+                    await github.rest.issues.createComment(
+                        {
+                            owner: context.repo.owner,
+                            repo: context.repo.repo,
+                            issue_number: context.payload.issue.number,
+                            body: commentBody
+                        }
+                    );
+                    await github.rest.issues.update(
+                        {
+                            owner: context.repo.owner,
+                            repo: context.repo.repo,
+                            issue_number: context.payload.issue.number,
+                            state: "closed"
+                        }
+                    );
+                    await github.rest.issues.lock(
+                        {
+                            owner: context.repo.owner,
+                            repo: context.repo.repo,
+                            issue_number: context.payload.issue.number,
+                            lock_reason: "resolved"
+                        }
+                    );
