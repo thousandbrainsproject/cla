@@ -16,17 +16,26 @@ jobs:
         runs-on: ubuntu-latest
         if: ${{ github.repository_owner == 'thousandbrainsproject' }}
         steps:
-            - name: Verify tbp-bot credentials are set
-              id: verify-tbp-bot-credentials
+            - name: Checkout cla repository for actions
+              uses: actions/checkout@v4
+            - name: Verify credentials are set
+              id: verify-credentials
               uses: actions/github-script@v7
               env:
-                TBP_BOT_TOKEN_SECRET: ${{ secrets.TBP_BOT_TOKEN_SECRET }}
+                AWS_ACCESS_KEY_ID: ${{ secrets.CLA_ACCESS_KEY_ID }}
+                AWS_SECRET_ACCESS_KEY: ${{ secrets.CLA_SECRET_ACCESS_KEY }}
               with:
                 script: |
-                    const TBP_BOT_TOKEN_SECRET = process.env.TBP_BOT_TOKEN_SECRET;
-                    if (!TBP_BOT_TOKEN_SECRET)
+                    const AWS_ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID;
+                    if (!AWS_ACCESS_KEY_ID)
                     {
-                        core.setFailed("TBP_BOT_TOKEN_SECRET is not set");
+                        core.setFailed("Missing CLA_ACCESS_KEY_ID secret");
+                        return;
+                    }
+                    const AWS_SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY;
+                    if (!AWS_SECRET_ACCESS_KEY)
+                    {
+                        core.setFailed("Missing CLA_SECRET_ACCESS_KEY secret");
                         return;
                     }
             - name: Verify signature
@@ -103,33 +112,14 @@ jobs:
                     );
             - name: Check if already a CLA signatory
               id: check-if-already-a-cla-signatory
-              uses: actions/github-script@v7
+              uses: ./.github/actions/check_if_cla_signatory
+              env:
+                AWS_ACCESS_KEY_ID: ${{ secrets.CLA_ACCESS_KEY_ID }}
+                AWS_SECRET_ACCESS_KEY: ${{ secrets.CLA_SECRET_ACCESS_KEY }}
               with:
-                github-token: ${{ secrets.TBP_BOT_TOKEN_SECRET }}
-                result-encoding: string
-                script: |
-                    try
-                    {
-                        const membership = await github.rest.teams.getMembershipForUserInOrg(
-                                {
-                                org: "thousandbrainsproject",
-                                team_slug: "cla-signatories",
-                                username: context.payload.sender.login
-                            }
-                        );
-                        if (membership?.data?.state === "active")
-                        {
-                            return "already-a-signatory";
-                        }
-                    }
-                    catch (error)
-                    {
-                        if (error?.response?.status === 404)
-                        {
-                            return;
-                        }
-                        throw error;
-                    }
+                cla-signatories-table-name: DynamoDB-CLASignatoriesTable-12GCQ0F0TB473
+                cla-signatories-table-region: us-east-2
+                cla-signatory: ${{ github.event.issue.user.login }}
             - name: Handle already a CLA signatory
               id: handle-already-a-cla-signatory
               uses: actions/github-script@v7
@@ -161,28 +151,24 @@ jobs:
                             lock_reason: "resolved"
                         }
                     );
-            - name: Invite to CLA signatories team
-              id: invite-to-cla-signatories-team
-              uses: actions/github-script@v7
+            - name: Add to CLA signatories
+              id: add-to-cla-signatories
+              uses: ./.github/actions/add_to_cla_signatories
               if: ${{ steps.check-if-already-a-cla-signatory.outputs.result != 'already-a-signatory' }}
+              env:
+                AWS_ACCESS_KEY_ID: ${{ secrets.CLA_ACCESS_KEY_ID }}
+                AWS_SECRET_ACCESS_KEY: ${{ secrets.CLA_SECRET_ACCESS_KEY }}
               with:
-                github-token: ${{ secrets.TBP_BOT_TOKEN_SECRET }}
-                script: |
-                    await github.rest.teams.addOrUpdateMembershipForUserInOrg(
-                        {
-                            org: "thousandbrainsproject",
-                            team_slug: "cla-signatories",
-                            username: context.payload.sender.login,
-                            role: "member"
-                        }
-                    );
-            - name: Notify of team invitation
-              id: notify-of-team-invitation
+                cla-signatories-table-name: DynamoDB-CLASignatoriesTable-12GCQ0F0TB473
+                cla-signatories-table-region: us-east-2
+                cla-signatory: ${{ github.event.issue.user.login }}
+            - name: Notify of successful signature
+              id: notify-of-successful-signature
               uses: actions/github-script@v7
-              if: ${{ steps.invite-to-cla-signatories-team.outcome == 'success' }}
+              if: ${{ steps.add-to-cla-signatories.outcome == 'success' }}
               with:
                 script: |
-                    const commentBody = "Signature verified.\n\nThank you for signing the CLA.\n\nYou will be invited to the Thousand Brains Project `cla-signatories` team shortly. Please accept the invitation to complete the process.";
+                    const commentBody = "Signature verified.\n\nThank you for signing the CLA.";
                     await github.rest.issues.createComment(
                         {
                             owner: context.repo.owner,
@@ -235,7 +221,7 @@ jobs:
                 path: ${{ steps.generate-backup-artifact.outputs.result }}
             - name: Handle automation failure
               uses: actions/github-script@v7
-              if: ${{ failure() && (steps.verify-tbp-bot-credentials.outcome == 'failure' || steps.handle-already-a-cla-signatory.outcome == 'failure' || steps.invite-to-cla-signatories-team.outcome == 'failure' || steps.notify-of-team-invitation.outcome == 'failure') }}
+              if: ${{ failure() && (steps.verify-credentials.outcome == 'failure' || steps.handle-already-a-cla-signatory.outcome == 'failure' || steps.add-to-cla-signatories.outcome == 'failure' || steps.notify-of-successful-signature.outcome == 'failure') }}
               with:
                 script: |
                     const commentBody = "> [!CAUTION]\n> Automation failed.\n\nPlease notify one of the [project maintainers](https://github.com/thousandbrainsproject/tbp.monty/blob/main/MAINTAINERS.md).";
