@@ -1,0 +1,16 @@
+name: "Check if CLA signatory"
+
+inputs:
+  cla-signatories-table-name:
+    description: "The name of the DynamoDB table containing the CLA signatories"
+    required: true
+  cla-signatories-table-region:
+    description: "The region of the DynamoDB table containing the CLA signatories"
+    required: true
+  cla-signatory:
+    description: "The username of the CLA signatory"
+    required: true
+
+runs:
+  using: "node20"
+  main: "dist/index.js"
