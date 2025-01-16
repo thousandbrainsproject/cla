@@ -18,6 +18,7 @@ const signatureBackupBucketName = core.getInput("signature-backup-bucket-name");
 const signatureBackupBucketRegion = core.getInput("signature-backup-bucket-region");
 const signatureArtifactPath = core.getInput("signature-artifact-path");
 const signatureArtifactName = basename(signatureArtifactPath);
+core.info(`signatureArtifactName: ${signatureArtifactName}`);
 
 const s3 = new S3Client(
     {
@@ -31,6 +32,8 @@ const putObject: PutObjectCommandInput =
     Key: signatureArtifactName,
     Body: await readFile(signatureArtifactPath)
 }
+const { Bucket, Key } = putObject;
+core.info(`putObject: ${JSON.stringify({ Bucket, Key })}`);
 try
 {
     await s3.send(new PutObjectCommand(putObject));

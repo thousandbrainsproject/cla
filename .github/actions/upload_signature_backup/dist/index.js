@@ -62843,12 +62843,14 @@ exports["default"] = _default;
 __nccwpck_require__.a(module, async (__webpack_handle_async_dependencies__, __webpack_async_result__) => { try {
 /* harmony import */ var _actions_core__WEBPACK_IMPORTED_MODULE_0__ = __nccwpck_require__(7484);
 /* harmony import */ var _actions_core__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__nccwpck_require__.n(_actions_core__WEBPACK_IMPORTED_MODULE_0__);
-/* harmony import */ var _aws_sdk_client_s3__WEBPACK_IMPORTED_MODULE_2__ = __nccwpck_require__(3711);
-/* harmony import */ var _aws_sdk_client_s3__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__nccwpck_require__.n(_aws_sdk_client_s3__WEBPACK_IMPORTED_MODULE_2__);
-/* harmony import */ var _aws_sdk_credential_providers__WEBPACK_IMPORTED_MODULE_3__ = __nccwpck_require__(9719);
-/* harmony import */ var _aws_sdk_credential_providers__WEBPACK_IMPORTED_MODULE_3___default = /*#__PURE__*/__nccwpck_require__.n(_aws_sdk_credential_providers__WEBPACK_IMPORTED_MODULE_3__);
+/* harmony import */ var _aws_sdk_client_s3__WEBPACK_IMPORTED_MODULE_3__ = __nccwpck_require__(3711);
+/* harmony import */ var _aws_sdk_client_s3__WEBPACK_IMPORTED_MODULE_3___default = /*#__PURE__*/__nccwpck_require__.n(_aws_sdk_client_s3__WEBPACK_IMPORTED_MODULE_3__);
+/* harmony import */ var _aws_sdk_credential_providers__WEBPACK_IMPORTED_MODULE_4__ = __nccwpck_require__(9719);
+/* harmony import */ var _aws_sdk_credential_providers__WEBPACK_IMPORTED_MODULE_4___default = /*#__PURE__*/__nccwpck_require__.n(_aws_sdk_credential_providers__WEBPACK_IMPORTED_MODULE_4__);
 /* harmony import */ var node_fs_promises__WEBPACK_IMPORTED_MODULE_1__ = __nccwpck_require__(1455);
 /* harmony import */ var node_fs_promises__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__nccwpck_require__.n(node_fs_promises__WEBPACK_IMPORTED_MODULE_1__);
+/* harmony import */ var node_path__WEBPACK_IMPORTED_MODULE_2__ = __nccwpck_require__(6760);
+/* harmony import */ var node_path__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__nccwpck_require__.n(node_path__WEBPACK_IMPORTED_MODULE_2__);
 /**
  * Copyright 2025 Thousand Brains Project
  *
@@ -62863,12 +62865,14 @@ __nccwpck_require__.a(module, async (__webpack_handle_async_dependencies__, __we
 
 
 
+
 const signatureBackupBucketName = _actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput("signature-backup-bucket-name");
 const signatureBackupBucketRegion = _actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput("signature-backup-bucket-region");
-const signatureArtifactName = _actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput("signature-artifact-name");
 const signatureArtifactPath = _actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput("signature-artifact-path");
-const s3 = new _aws_sdk_client_s3__WEBPACK_IMPORTED_MODULE_2__.S3Client({
-    credentials: (0,_aws_sdk_credential_providers__WEBPACK_IMPORTED_MODULE_3__.fromEnv)(),
+const signatureArtifactName = (0,node_path__WEBPACK_IMPORTED_MODULE_2__.basename)(signatureArtifactPath);
+_actions_core__WEBPACK_IMPORTED_MODULE_0__.info(`signatureArtifactName: ${signatureArtifactName}`);
+const s3 = new _aws_sdk_client_s3__WEBPACK_IMPORTED_MODULE_3__.S3Client({
+    credentials: (0,_aws_sdk_credential_providers__WEBPACK_IMPORTED_MODULE_4__.fromEnv)(),
     region: signatureBackupBucketRegion
 });
 const putObject = {
@@ -62876,8 +62880,10 @@ const putObject = {
     Key: signatureArtifactName,
     Body: await (0,node_fs_promises__WEBPACK_IMPORTED_MODULE_1__.readFile)(signatureArtifactPath)
 };
+const { Bucket, Key } = putObject;
+_actions_core__WEBPACK_IMPORTED_MODULE_0__.info(`putObject: ${JSON.stringify({ Bucket, Key })}`);
 try {
-    await s3.send(new _aws_sdk_client_s3__WEBPACK_IMPORTED_MODULE_2__.PutObjectCommand(putObject));
+    await s3.send(new _aws_sdk_client_s3__WEBPACK_IMPORTED_MODULE_3__.PutObjectCommand(putObject));
 }
 catch (error) {
     _actions_core__WEBPACK_IMPORTED_MODULE_0__.setFailed(`Failed to upload signature backup: ${error}`);
@@ -62997,6 +63003,13 @@ module.exports = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("node:events"
 /***/ ((module) => {
 
 module.exports = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("node:fs/promises");
+
+/***/ }),
+
+/***/ 6760:
+/***/ ((module) => {
+
+module.exports = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("node:path");
 
 /***/ }),
 
