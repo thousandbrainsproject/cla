@@ -1,0 +1,16 @@
+name: "Upload signature backup"
+
+inputs:
+  signature-artifact-path:
+    description: "The path to the signature artifact"
+    required: true
+  signature-backup-bucket-name:
+    description: "The name of the S3 bucket to upload the signature backup to"
+    required: true
+  signature-backup-bucket-region:
+    description: "The region of the S3 bucket to upload the signature backup to"
+    required: true
+
+runs:
+  using: "node20"
+  main: "dist/index.js"

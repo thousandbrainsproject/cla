@@ -1,0 +1,23 @@
+{
+    "name": "upload-signature-backup",
+    "version": "0.0.0",
+    "description": "Upload a signature backup to S3",
+    "private": true,
+    "scripts": {
+        "build": "npm run clean && ncc build src/index.ts",
+        "clean": "rm -rf dist"
+    },
+    "main": "index.mjs",
+    "type": "module",
+    "devDependencies": {
+        "@types/node": "^22.7.5",
+        "@vercel/ncc": "^0.38.2",
+        "typescript": "^5.6.3"
+    },
+    "dependencies": {
+        "@actions/core": "^1.11.1",
+        "@actions/github": "^6.0.0",
+        "@aws-sdk/client-s3": "^3.726.1",
+        "@aws-sdk/credential-providers": "^3.726.1"
+    }
+}
