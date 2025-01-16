@@ -62870,7 +62870,6 @@ const signatureBackupBucketName = _actions_core__WEBPACK_IMPORTED_MODULE_0__.get
 const signatureBackupBucketRegion = _actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput("signature-backup-bucket-region");
 const signatureArtifactPath = _actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput("signature-artifact-path");
 const signatureArtifactName = (0,node_path__WEBPACK_IMPORTED_MODULE_2__.basename)(signatureArtifactPath);
-_actions_core__WEBPACK_IMPORTED_MODULE_0__.info(`signatureArtifactName: ${signatureArtifactName}`);
 const s3 = new _aws_sdk_client_s3__WEBPACK_IMPORTED_MODULE_3__.S3Client({
     credentials: (0,_aws_sdk_credential_providers__WEBPACK_IMPORTED_MODULE_4__.fromEnv)(),
     region: signatureBackupBucketRegion
@@ -62880,8 +62879,6 @@ const putObject = {
     Key: signatureArtifactName,
     Body: await (0,node_fs_promises__WEBPACK_IMPORTED_MODULE_1__.readFile)(signatureArtifactPath)
 };
-const { Bucket, Key } = putObject;
-_actions_core__WEBPACK_IMPORTED_MODULE_0__.info(`putObject: ${JSON.stringify({ Bucket, Key })}`);
 try {
     await s3.send(new _aws_sdk_client_s3__WEBPACK_IMPORTED_MODULE_3__.PutObjectCommand(putObject));
 }
